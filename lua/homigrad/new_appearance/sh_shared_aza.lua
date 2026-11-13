@@ -1,0 +1,1 @@
+hg.Appearance.Clothes[1]["lapa"] = "models/humans/male/group01/lapa"
