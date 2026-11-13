@@ -1,0 +1,3 @@
+local MODE = MODE
+
+MODE.SURVIVE_TIME = 3600
