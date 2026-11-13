@@ -1,0 +1,336 @@
+include("shared.lua")
+
+hook.Add("NetworkEntityCreated", "GlobalRadio", function(ent)
+	if playingents[ent:EntIndex()] then
+		local tbl = playingents[ent:EntIndex()]
+
+		timer.Simple(0.2, function()
+			if ent.PlayURL then
+				ent:PlayURL(tbl[2], CurTime() - tbl[1])
+			end
+		end)
+	end
+end)
+
+net.Receive("GlobalRadioChangeValue", function(len, ply)
+	local val = net.ReadFloat()
+	local index = net.ReadInt(32)
+
+	if playingents[index] then
+		if IsValid(playingents[index][3]) and not playingents[index][3]:IsBlockStreamed() then
+			playingents[index][3]:SetTime(val)
+		end
+	end
+end)
+
+net.Receive("GlobalRadioChangeVolume", function(len, ply)
+	local val = net.ReadFloat()
+	local index = net.ReadInt(32)
+
+	if playingents[index] then
+		if IsValid(playingents[index][3]) then
+			playingents[index][5] = val
+			playingents[index][3]:SetVolume(val)
+		end
+	end
+end)
+
+net.Receive("GlobalRadioPause", function(len, ply)
+	local val = net.ReadBool()
+	local index = net.ReadInt(32)
+
+	if playingents[index] then
+		if IsValid(playingents[index][3]) then
+			if val then
+				playingents[index][3]:Pause()
+			else
+				playingents[index][3]:Play()
+			end
+		end
+	end
+end)
+
+net.Receive("GlobalRadioStop", function(len, ply)
+	local index = net.ReadInt(32)
+
+	if playingents[index] then
+		if IsValid(playingents[index][3]) then
+			playingents[index][3]:Stop()
+			playingents[index][3] = nil
+		end
+	end
+end)
+
+net.Receive("GlobalRadioLooping", function(len, ply)
+	local val = net.ReadBool()
+	local index = net.ReadInt(32)
+
+	if playingents[index] then
+		if IsValid(playingents[index][3]) then
+			playingents[index][3]:EnableLooping(val)
+		end
+	end
+end)
+
+local frame
+
+local red = Color(150, 0, 0)
+
+net.Receive("GlobalRadioURLInput", function()
+	if IsValid(frame) then return end
+	local ent = net.ReadEntity()
+	if not IsValid(ent) then return end
+
+	frame = vgui.Create("ZFrame")
+	frame:SetSize(400, 350)
+	frame:SetPos(ScrW() / 2 - frame:GetWide() / 2, ScrH() + 500)
+	frame:SetTitle(playingents[ent:EntIndex()] and "Global Radio: In playing..." or "Global Radio")
+	frame:MakePopup()
+	frame:SetAlpha(0)
+	frame.OnClose = function() frame = nil end
+
+	frame:MoveTo(ScrW() / 2 - frame:GetWide() / 2, ScrH() / 2 - frame:GetTall() / 2, 0.5, 0, 0.3)
+	frame:AlphaTo(255, 0.2, 0.1, nil)
+
+	function frame:Close()
+		self:MoveTo(ScrW() / 2 - frame:GetWide() / 2, ScrH() + 500, 0.5, 0, 0.3, function()
+			self:Remove()
+		end)
+		self:AlphaTo(0, 0.1, 0, nil)
+		self:SetKeyboardInputEnabled(false)
+		self:SetMouseInputEnabled(false)
+	end
+
+	local tEntryBG1 = vgui.Create("DPanel", frame)
+	tEntryBG1:Dock(TOP)
+	tEntryBG1:SetBackgroundColor(color_white)
+	tEntryBG1:DockMargin(5, 5, 5, 2.5)
+	tEntryBG1:SetSize(50, 45)
+	function tEntryBG1:Paint(w, h)
+		self.a = Lerp(0.1, self.a or 100, self:IsHovered() and 255 or 150)
+		draw.RoundedBox(0, 0, 0, w, h, Color(red.r, red.g, red.b, self.a))
+		surface.SetDrawColor(color_black)
+		surface.DrawOutlinedRect(0, 0, w, h, 2.5)
+	end
+
+	local urlEntry = vgui.Create("DTextEntry", tEntryBG1)
+	urlEntry:Dock(FILL)
+	urlEntry:SetTextColor(Color(255, 255, 255))
+	urlEntry:SetPlaceholderText("Enter URL here")
+	urlEntry:SetPaintBackground(false)
+
+	urlEntry.OnEnter = function()
+		net.Start("GlobalRadioURLInput")
+		net.WriteString(urlEntry:GetValue())
+		net.WriteEntity(ent)
+		net.SendToServer()
+		frame:Close()
+	end
+
+	local controlsPanel = vgui.Create("DPanel", frame)
+	controlsPanel:Dock(TOP)
+	controlsPanel:DockMargin(5, 5, 5, 2.5)
+	controlsPanel:SetSize(50, 45)
+	controlsPanel.Paint = function() end
+
+	local function PaintButton(self, w, h)
+		self.a = Lerp(0.1, self.a or 100, self:IsHovered() and 255 or 150)
+		draw.RoundedBox(0, 0, 0, w, h, Color(red.r, red.g, red.b, self.a))
+		surface.SetDrawColor(color_black)
+		surface.DrawOutlinedRect(0, 0, w, h, 2.5)
+	end
+
+	local playButton = vgui.Create("DButton", controlsPanel)
+	playButton:SetText("Play")
+	playButton:Dock(LEFT)
+	playButton:DockMargin(1, 2, 1, 2)
+	playButton:SetSize(370 / 4, 45)
+	playButton:SetTextColor(Color(255, 255, 255))
+	playButton.DoClick = function()
+		net.Start("GlobalRadioURLInput")
+		net.WriteString(urlEntry:GetValue())
+		net.WriteEntity(ent)
+		net.SendToServer()
+		frame:Close()
+	end
+	playButton.Paint = PaintButton
+
+	local stopButton = vgui.Create("DButton", controlsPanel)
+	stopButton:SetText("Stop")
+	stopButton:Dock(RIGHT)
+	stopButton:DockMargin(1, 2, 1, 2)
+	stopButton:SetSize(370 / 4, 45)
+	stopButton:SetTextColor(Color(255, 255, 255))
+	stopButton.DoClick = function()
+		net.Start("GlobalRadioStop")
+			net.WriteEntity(ent)
+		net.SendToServer()
+		frame:Close()
+	end
+	stopButton.Paint = PaintButton
+
+	local loopButton = vgui.Create("DButton", controlsPanel)
+	loopButton:SetText("Looping")
+	loopButton:Dock(RIGHT)
+	loopButton:DockMargin(1, 2, 1, 2)
+	loopButton:SetSize(370 / 4, 45)
+	loopButton:SetTextColor(Color(255, 255, 255))
+	loopButton.DoClick = function()
+		local pdata = playingents[ent:EntIndex()]
+		local snd = pdata and pdata[3]
+		net.Start("GlobalRadioLooping")
+			net.WriteBool(IsValid(snd) and not snd:IsLooping() or false)
+			net.WriteEntity(ent)
+		net.SendToServer()
+		frame:Close()
+	end
+	loopButton.Paint = PaintButton
+
+	local pauseButton = vgui.Create("DButton", controlsPanel)
+	pauseButton:SetText("Pause")
+	pauseButton:Dock(FILL)
+	pauseButton:DockMargin(1, 2, 1, 2)
+	pauseButton:SetSize(370 / 4, 45)
+	pauseButton:SetTextColor(Color(255, 255, 255))
+	pauseButton.DoClick = function()
+		local pdata = playingents[ent:EntIndex()]
+		local snd = pdata and pdata[3]
+		net.Start("GlobalRadioPause")
+			net.WriteBool(IsValid(snd) and snd:GetState() ~= GMOD_CHANNEL_PAUSED or false)
+			net.WriteEntity(ent)
+		net.SendToServer()
+		frame:Close()
+	end
+	pauseButton.Paint = PaintButton
+
+	if playingents[ent:EntIndex()] and IsValid(playingents[ent:EntIndex()][3]) then
+		local lbl = vgui.Create("DLabelURL", frame)
+		lbl:Dock(TOP)
+		lbl:DockMargin(10, 5, 5, 2.5)
+		lbl:SetSize(50, 45)
+		lbl:SetColor(Color(255, 255, 255, 255))
+		lbl:SetText(("Currently playing \n" .. playingents[ent:EntIndex()][2]))
+		lbl:SetURL(playingents[ent:EntIndex()][2])
+	end
+
+	if playingents[ent:EntIndex()] and IsValid(playingents[ent:EntIndex()][3]) then
+		local DermaNumSlider = vgui.Create("DNumSlider", frame)
+		DermaNumSlider:Dock(TOP)
+		DermaNumSlider:DockMargin(10, 0, 5, 0)
+		DermaNumSlider:SetSize(50, 45)
+		DermaNumSlider:SetText("Time slider")
+		DermaNumSlider:SetMin(0)
+		DermaNumSlider:SetMax(playingents[ent:EntIndex()][3]:GetLength())
+		DermaNumSlider:SetDecimals(2)
+		DermaNumSlider:SizeToContents()
+		DermaNumSlider.isedited = false
+		DermaNumSlider.OnValueChanged = function(self, val)
+			local pdata = playingents[ent:EntIndex()]
+			if not pdata or not IsValid(pdata[3]) then return end
+			if pdata[3]:IsBlockStreamed() then return end
+			if self:IsEditing() then
+				DermaNumSlider.isedited = true
+				pdata[3]:SetTime(val)
+			else
+				if DermaNumSlider.isedited then
+					net.Start("GlobalRadioChangeValue")
+					net.WriteFloat(val)
+					net.WriteInt(ent:EntIndex(), 32)
+					net.SendToServer()
+					DermaNumSlider.isedited = false
+				end
+			end
+		end
+
+		playingents[ent:EntIndex()][4] = DermaNumSlider
+		DermaNumSlider:SetValue(playingents[ent:EntIndex()][3]:GetTime())
+	end
+
+	if playingents[ent:EntIndex()] and IsValid(playingents[ent:EntIndex()][3]) then
+		local DermaNumSlider = vgui.Create("DNumSlider", frame)
+		DermaNumSlider:Dock(TOP)
+		DermaNumSlider:DockMargin(10, 0, 5, 0)
+		DermaNumSlider:SetSize(50, 45)
+		DermaNumSlider:SetText("Volume slider")
+		DermaNumSlider:SetMin(0)
+		DermaNumSlider:SetMax(200)
+		DermaNumSlider:SetDecimals(0)
+		DermaNumSlider:SizeToContents()
+		DermaNumSlider.isedited = false
+		DermaNumSlider.OnValueChanged = function(self, val)
+			local pdata = playingents[ent:EntIndex()]
+			if not pdata or not IsValid(pdata[3]) then return end
+			if self:IsEditing() then
+				DermaNumSlider.isedited = true
+				pdata[3]:SetVolume(val / 100)
+				pdata[5] = val / 100
+			else
+				if DermaNumSlider.isedited then
+					net.Start("GlobalRadioChangeVolume")
+						net.WriteFloat(val / 100)
+						net.WriteInt(ent:EntIndex(), 32)
+					net.SendToServer()
+					DermaNumSlider.isedited = false
+				end
+			end
+		end
+		DermaNumSlider:SetValue(playingents[ent:EntIndex()][3]:GetVolume() * 100)
+	end
+end)
+
+local FFTs
+function ENT:Draw()
+	self:DrawModel()
+
+	local ang = self:GetAngles()
+	ang:RotateAroundAxis(self:GetUp(), 90)
+	ang:RotateAroundAxis(self:GetRight(), -90)
+	ang:RotateAroundAxis(self:GetForward(), 0)
+
+	local pos = self:GetPos()
+	pos = pos + self:GetForward() * 2.5
+	pos = pos + self:GetUp() * 4.1
+
+	local resolution = 1.5
+
+	cam.Start3D2D(pos, ang, 0.05 / resolution)
+		FFTs = FFTs or {}
+		surface.SetDrawColor(color_black)
+		surface.DrawRect(0, -70, 65 * 3.3, 80)
+		if playingents[self:EntIndex()] and IsValid(playingents[self:EntIndex()][3]) and playingents[self:EntIndex()][3]:GetState() == GMOD_CHANNEL_PLAYING then
+			playingents[self:EntIndex()][3]:FFT(FFTs, FFT_2048)
+			for i = 1, 65 do
+				draw.RoundedBox(0, 0 + (i - 1) * 3.3, 10 - math.min(FFTs[i + 1] * 255, 80), 3, math.min(FFTs[i + 1] * 255, 80), Color(255, 0, 0))
+			end
+		end
+	cam.End3D2D()
+end
+
+playingents = playingents or {}
+
+net.Receive("PlayGlobalRadioSound", function()
+	local url = net.ReadString()
+	local index = net.ReadInt(32)
+	local ent = Entity(index)
+
+	playingents[index] = {[1] = CurTime(), [2] = url, [5] = 1}
+
+	if IsValid(ent) then
+		ent:PlayURL(url)
+	end
+end)
+
+function ENT:Think()
+	self:SetNextClientThink(CurTime() + 0.025)
+
+	if CLIENT and playingents[self:EntIndex()] and IsValid(playingents[self:EntIndex()][3]) and IsValid(playingents[self:EntIndex()][4]) then
+		playingents[self:EntIndex()][4]:SetValue(playingents[self:EntIndex()][3]:GetTime())
+	end
+
+	if playingents[self:EntIndex()] and IsValid(playingents[self:EntIndex()][3]) then
+		playingents[self:EntIndex()][3]:SetPos(self:GetPos())
+		playingents[self:EntIndex()][3]:SetVolume(playingents[self:EntIndex()][5] or 1)
+	end
+
+	return true
+end
