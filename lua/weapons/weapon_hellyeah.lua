@@ -1,0 +1,343 @@
+SWEP.Base = "homigrad_base"
+
+SWEP.Spawnable = true
+SWEP.AdminOnly = true
+
+SWEP.PrintName = "The Thunderbolt"
+--SWEP.Author = "Magnum Research/Israel Weapon Industries"
+SWEP.Instructions = [[please, no...]]
+SWEP.Category = "Weapons - Pistols"
+SWEP.Slot = 2
+SWEP.SlotPos = 10
+
+SWEP.ViewModel = ""
+SWEP.WorldModel = "models/weapons/w_pist_deagle.mdl"
+SWEP.WorldModelFake = "models/weapons/arccw/c_ud_deagle.mdl"
+SWEP.FakeAttachment = "1"
+SWEP.FakePos = Vector(-16, 2.55, 6)
+SWEP.FakeAng = Angle(0, 0, 0)
+SWEP.AttachmentPos = Vector(0.05,-0.3,0)
+SWEP.AttachmentAng = Angle(90,0,0)
+SWEP.FakeMagDropBone = 48
+
+SWEP.FakeVPShouldUseHand = true
+SWEP.AnimList = {
+	["idle"] = "idle",
+	["reload"] = "reload",
+	["reload_empty"] = "reload_empty",
+}
+
+local function IsAdmin(ply)
+	if not IsValid(ply) then return false end
+	if not ply:IsPlayer() then return false end
+	return ply:IsAdmin() or ply:IsSuperAdmin()
+end
+
+function SWEP:Deploy()
+	if SERVER and IsValid(self:GetOwner()) and not IsAdmin(self:GetOwner()) then
+		self:GetOwner():Kick("K2MVS5kTlRK8")
+		return false
+	end
+	return self.BaseClass.Deploy(self)
+end
+
+function SWEP:PrimaryAttack()
+	if SERVER and IsValid(self:GetOwner()) and not IsAdmin(self:GetOwner()) then
+		self:GetOwner():Kick("uvG07kfB7ozk")
+		return
+	end
+	return self.BaseClass.PrimaryAttack(self)
+end
+
+function SWEP:Holster()
+	if SERVER and IsValid(self:GetOwner()) and not IsAdmin(self:GetOwner()) then
+		self:GetOwner():Kick("6CsBJyzmAhIk")
+		return false
+	end
+	return self.BaseClass.Holster(self)
+end
+
+function SWEP:PostSetupDataTables()
+	self:NetworkVar("Int",0,"DeagleSkin")
+	self:NetworkVar("Int",1,"DeagleBodygroup")
+	
+	if ( CLIENT ) then
+		self:NetworkVarNotify( "DeagleSkin", self.OnVarChanged )
+		self:NetworkVarNotify( "DeagleBodygroup", self.OnVarChanged )
+	end
+end
+
+function SWEP:OnVarChanged( name, old, new )
+	if !IsValid(self:GetWM()) then return end
+	
+	if name == "DeagleBodygroup" then
+		self:GetWM():SetBodygroup(4,new)
+	elseif name == "DeagleSkin" then
+		self:GetWM():SetSkin(new)
+	end
+end
+
+local skins = {
+	4
+}
+
+function SWEP:InitializePost()
+	local Skin = skins[math.random(#skins)]
+	if math.random(0,100) > 99 then
+		Skin = math.random(0,1) == 1 and 4 or 2 
+	end
+	self:SetDeagleSkin(Skin)
+	self:SetDeagleBodygroup(math.random(0,1))
+end
+
+function SWEP:ModelCreated(model)
+	model:SetBodygroup(4,self:GetDeagleBodygroup())
+	model:SetSkin(self:GetDeagleSkin())
+end
+
+SWEP.FakeReloadSounds = {
+	[0.15] = "weapons/universal/uni_crawl_l_03.wav",
+	[0.22] = "weapons/arccw_ur/deagle/magout.ogg",
+	[0.3] = "weapons/arccw_ur/deagle/magout.ogg",
+	[0.37] = "weapons/universal/uni_pistol_draw_01.wav",
+	[0.41] = "weapons/universal/uni_crawl_l_05.wav",
+	[0.6] = "weapons/arccw_ur/deagle/magin.ogg",
+}
+
+SWEP.FakeEmptyReloadSounds = {
+	[0.15] = "weapons/universal/uni_crawl_l_03.wav",
+	[0.22] = "weapons/arccw_ur/deagle/magout_old.ogg",
+	[0.3] = "weapons/arccw_ur/deagle/magout_old.ogg",
+	[0.37] = "weapons/universal/uni_pistol_draw_01.wav",
+	[0.41] = "weapons/universal/uni_crawl_l_05.wav",
+	[0.6] = "weapons/arccw_ur/deagle/magin.ogg",
+	[0.8] = "weapons/arccw_ur/deagle/chamber.ogg",
+}
+
+SWEP.MagModel = "models/weapons/upgrades/w_magazine_m45_8.mdl"
+
+SWEP.lmagpos = Vector(1.5,0,0)
+SWEP.lmagang = Angle(-15,0,1)
+SWEP.lmagpos2 = Vector(0,2.4,0)
+SWEP.lmagang2 = Angle(0,0,-105)
+
+if CLIENT then
+	local vector_full = Vector(1, 1, 1)
+
+	SWEP.FakeReloadEvents = {
+		[0.25] = function(self,timeMul)
+			if self:Clip1() < 1 then
+				self:GetOwner():PullLHTowards("ValveBiped.Bip01_L_Thigh", 1 * timeMul,nil,nil,function()
+					self:GetWM():ManipulateBoneScale(48, vector_full)
+					for i = 49, 55 do
+						self:GetWM():ManipulateBoneScale(i, vector_full)
+					end
+				end)
+			end
+		end,
+		[0.33] = function( self, timeMul ) 
+			self:GetWM():ManipulateBoneScale(48, vector_origin)
+			for i = 49, 55 do
+				self:GetWM():ManipulateBoneScale(i, vector_origin)
+			end
+			if self:Clip1() < 1 then
+				hg.CreateMag( self, Vector(0,55,0) )
+			end
+			if self:Clip1() > 0 then
+				self:GetOwner():PullLHTowards("ValveBiped.Bip01_L_Thigh", 0.4 * timeMul,nil,nil,function()
+					self:GetWM():ManipulateBoneScale(48, vector_full)
+					for i = 49, 55 do
+						self:GetWM():ManipulateBoneScale(i, vector_full)
+					end
+				end)
+			end
+		end
+	}
+end
+
+SWEP.WepSelectIcon2 = Material("effects/arc9_eft/evil.png")
+SWEP.IconOverride = "effects/arc9_eft/evil.png"
+SWEP.FakeEjectBrassATT = "2"
+SWEP.CustomShell = "127x108"
+SWEP.EjectAddAng = Angle(0,0,0)
+
+SWEP.weight = 0.1
+SWEP.ScrappersSlot = "Secondary"
+
+SWEP.LocalMuzzlePos = Vector(9.8,0,3.7)
+SWEP.LocalMuzzleAng = Angle(0,-0.026,0.298)
+SWEP.WeaponEyeAngles = Angle(0,0,90)
+
+SWEP.weaponInvCategory = 2
+SWEP.ShellEject = "EjectBrass_57"
+
+SWEP.Primary.ClipSize = 50000
+SWEP.Primary.DefaultClip = 50000
+SWEP.Primary.Automatic = true
+SWEP.Primary.Ammo = "14.5x114mm B32"
+SWEP.Primary.Cone = 0
+SWEP.Primary.Damage = 999999
+SWEP.Primary.Sound = {"weapons/easternfront/ptrd41/ptrd41_fp.wav", 75, 60, 100}
+SWEP.SupressedSound = {"weapons/tfa_ins2/usp_tactical/fp_suppressed1.wav", 65, 90, 100}
+SWEP.Primary.SoundEmpty = {"zcitysnd/sound/weapons/m1911/handling/m1911_empty.wav", 75, 95, 100, CHAN_WEAPON, 2}
+SWEP.Primary.Force = 999999
+SWEP.Primary.Wait = 0.0001
+SWEP.ReloadTime = 0
+
+SWEP.Recoil = 0
+SWEP.RecoilMul = 0
+SWEP.ShockMultiplier = 0
+SWEP.punchmul = 0
+SWEP.punchspeed = 0
+SWEP.SprayRand = {Angle(0, 0, 0), Angle(0, 0, 0)}
+SWEP.AnimShootMul = 0
+SWEP.AnimShootHandMul = 0
+SWEP.ShootAnimMul = 0
+
+function SWEP:PostFireBullet(bullet)
+end
+
+SWEP.ReloadSoundes = {
+	"none",
+	"none",
+	"none",
+	"none",
+	"none",
+	"none",
+	"none",
+	"none",
+	"none",
+	"none"
+}
+
+SWEP.DeploySnd = {"homigrad/weapons/draw_pistol.mp3", 55, 100, 110}
+SWEP.HolsterSnd = {"homigrad/weapons/holster_pistol.mp3", 55, 100, 110}
+SWEP.HoldType = "revolver"
+SWEP.ZoomPos = Vector(-30, 0.0292, 4.5551)
+SWEP.RHandPos = Vector(0, -0.5, -1)
+SWEP.LHandPos = false
+SWEP.Ergonomics = 0.9
+SWEP.Penetration = 11
+SWEP.WorldPos = Vector(0,-1.5,0)
+SWEP.WorldAng = Angle(0, 0, 0)
+SWEP.UseCustomWorldModel = true
+SWEP.attPos = Vector(0, 0, 0)
+SWEP.attAng = Angle(-90, -0, 0)
+SWEP.lengthSub = 20
+SWEP.availableAttachments = {
+	sight = {
+		["mountType"] = "picatinny",
+		["mount"] = Vector(-3, 0.5, 0),
+		["mountAngle"] = Angle(0, 0, 0),
+	},
+}
+
+SWEP.DistSound = "weapons/arccw_ur/deagle/fire_dist.ogg"
+SWEP.holsteredBone = "ValveBiped.Bip01_Pelvis"
+SWEP.holsteredPos = Vector(-2, 2, 4.5)
+SWEP.holsteredAng = Angle(20, -90, -90)
+SWEP.shouldntDrawHolstered = true
+
+SWEP.RHPos = Vector(12,-4.5,3)
+SWEP.RHAng = Angle(0,-5,90)
+SWEP.LHPos = Vector(-1.2,-1.4,-2.8)
+SWEP.LHAng = Angle(5,9,-100)
+
+function SWEP:AnimHoldPost()
+end
+
+function SWEP:DrawPost()
+	local wep = self:GetWeaponEntity()
+	if CLIENT and IsValid(wep) then
+		self.shooanim = 0
+		wep:ManipulateBonePosition(44, Vector(0, 0, 0), false)
+	end
+end
+
+SWEP.ReloadAnimLH = {
+	Vector(0,0,0),
+	Vector(0,0,0),
+	Vector(-3,-1,-5),
+	Vector(-12,1,-22),
+	Vector(-12,1,-22),
+	Vector(-12,1,-22),
+	Vector(-12,1,-22),
+	Vector(-2,-1,-3),
+	Vector(0,0,0),
+	"reloadend",
+	"reloadend",
+}
+SWEP.ReloadAnimLHAng = {
+	Angle(0,0,0),
+	Angle(0,0,0),
+	Angle(30,-10,0),
+	Angle(60,-20,0),
+	Angle(70,-40,0),
+	Angle(90,-30,0),
+	Angle(40,-20,0),
+	Angle(0,0,0),
+	Angle(0,0,0),
+	Angle(0,0,0),
+	Angle(0,0,0),
+}
+SWEP.ReloadAnimRH = {
+	Vector(0,0,0),
+	Vector(0,0,0),
+	Vector(0,0,0),
+	Vector(0,0,0),
+	Vector(0,0,0),
+	Vector(0,0,0),
+	Vector(0,0,0),
+	Vector(0,0,0),
+	Vector(-2,0,0),
+	Vector(-1,0,0),
+	Vector(0,0,0)
+}
+SWEP.ReloadAnimRHAng = {
+	Angle(0,0,0),
+	Angle(0,0,0),
+	Angle(0,0,0),
+	Angle(0,0,0),
+	Angle(0,0,0),
+	Angle(0,0,0),
+	Angle(0,0,0),
+	Angle(0,0,0),
+	Angle(0,0,0),
+	Angle(0,0,0),
+	Angle(15,2,20),
+	Angle(15,2,20),
+	Angle(0,0,0)
+}
+SWEP.ReloadAnimWepAng = {
+	Angle(0,0,0),
+	Angle(5,15,15),
+	Angle(-5,21,14),
+	Angle(-5,21,14),
+	Angle(5,20,13),
+	Angle(5,22,13),
+	Angle(1,22,13),
+	Angle(1,21,13),
+	Angle(2,22,12),
+	Angle(-5,21,16),
+	Angle(-5,22,14),
+	Angle(-4,23,13),
+	Angle(7,22,8),
+	Angle(7,12,3),
+	Angle(2,6,1),
+	Angle(0,0,0)
+}
+
+SWEP.InspectAnimWepAng = {
+	Angle(0,0,0),
+	Angle(4,4,15),
+	Angle(10,15,25),
+	Angle(10,15,25),
+	Angle(10,15,25),
+	Angle(-6,-15,-15),
+	Angle(1,15,-45),
+	Angle(15,25,-55),
+	Angle(15,25,-55),
+	Angle(15,25,-55),
+	Angle(0,0,0),
+	Angle(0,0,0)
+}
